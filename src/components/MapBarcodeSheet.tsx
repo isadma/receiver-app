@@ -1,17 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  KeyboardAvoidingView,
+  Keyboard,
   Modal,
-  Platform,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError, listProducts, updateProductBarcode } from '../api';
 import { useApi } from '../context/ApiContext';
+import { useLocale } from '../context/LocaleContext';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import type { Product } from '../types';
 import { colors, space } from '../theme';
@@ -27,160 +28,201 @@ type Props = {
 };
 
 export function MapBarcodeSheet({ visible, barcode, onClose, onMapped }: Props) {
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      {visible ? (
+        <MapBarcodeForm
+          key={barcode}
+          barcode={barcode}
+          onClose={onClose}
+          onMapped={onMapped}
+        />
+      ) : null}
+    </Modal>
+  );
+}
+
+function MapBarcodeForm({
+  barcode,
+  onClose,
+  onMapped,
+}: {
+  barcode: string;
+  onClose: () => void;
+  onMapped: (product: Product) => void;
+}) {
   const insets = useSafeAreaInsets();
+  const { t } = useLocale();
   const { baseUrl } = useApi();
+  const searchRef = useRef<ComponentRef<typeof TextInput>>(null);
+  const savingRef = useRef(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Product[]>([]);
+  const [resultsFor, setResultsFor] = useState('');
   const [selected, setSelected] = useState<Product | null>(null);
-  const [searching, setSearching] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const debouncedQuery = useDebouncedValue(query.trim(), 300);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      searchRef.current?.focus();
+    }, 400);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, []);
+
+  const trimmedQuery = query.trim();
+  const debouncedQuery = useDebouncedValue(trimmedQuery, 300);
+  const listData = trimmedQuery.length === 0 ? [] : results;
+  const showSearching = trimmedQuery.length > 0 && resultsFor !== trimmedQuery;
 
   useEffect(() => {
-    if (!visible) {
-      return;
-    }
-
-    setQuery('');
-    setResults([]);
-    setSelected(null);
-    setError(null);
-    setSaving(false);
-  }, [visible, barcode]);
-
-  useEffect(() => {
-    if (!visible) {
-      return;
-    }
-
     if (debouncedQuery.length === 0) {
-      setResults([]);
-      setSearching(false);
       return;
     }
 
     let cancelled = false;
-    setSearching(true);
-    setError(null);
 
     listProducts(baseUrl, { q: debouncedQuery, perPage: 20 })
       .then((page) => {
         if (!cancelled) {
           setResults(page.data);
+          setResultsFor(debouncedQuery);
+          setError(null);
         }
       })
       .catch((caught) => {
         if (!cancelled) {
           setResults([]);
-          setError(caught instanceof ApiError ? caught.displayMessage : 'Search failed.');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setSearching(false);
+          setResultsFor(debouncedQuery);
+          setError(caught instanceof ApiError ? caught.displayMessage : t('searchFailed'));
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [baseUrl, debouncedQuery, visible]);
+  }, [baseUrl, debouncedQuery, t]);
+
+  const needsConfirm = (product: Product): boolean =>
+    Boolean(product.barcode && product.barcode !== barcode);
 
   const replaceWarning =
-    selected?.barcode && selected.barcode !== barcode
-      ? `${selected.sku} already has barcode ${selected.barcode}. Saving will replace it.`
+    selected && needsConfirm(selected)
+      ? t('replaceBarcode', { sku: selected.sku ?? '', barcode: selected.barcode ?? '' })
       : null;
 
-  const save = async () => {
-    if (!selected?.sku) {
-      setError('This product has no SKU, so it cannot be mapped.');
+  const hideKeyboard = () => {
+    Keyboard.dismiss();
+  };
+
+  const save = async (product: Product) => {
+    if (!product.sku) {
+      setError(t('noSkuCannotMap'));
       return;
     }
 
+    if (savingRef.current) {
+      return;
+    }
+
+    savingRef.current = true;
     setSaving(true);
     setError(null);
 
     try {
-      const product = await updateProductBarcode(baseUrl, selected.sku, barcode);
-      onMapped(product);
+      const mapped = await updateProductBarcode(baseUrl, product.sku, barcode);
+      onMapped(mapped);
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.displayMessage : 'Could not save the barcode.');
+      savingRef.current = false;
+      setError(caught instanceof ApiError ? caught.displayMessage : t('couldNotSaveBarcode'));
     } finally {
       setSaving(false);
     }
   };
 
+  const selectProduct = (product: Product) => {
+    hideKeyboard();
+    setSelected(product);
+    setError(null);
+
+    if (!needsConfirm(product)) {
+      void save(product);
+    }
+  };
+
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={[styles.screen, { paddingTop: insets.top + space.md }]}>
-          <Text style={styles.kicker}>Scanned barcode</Text>
-          <Text style={styles.barcode}>{barcode}</Text>
-          <Text style={styles.title}>Find the product SKU</Text>
-          <SearchField
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Type SKU or product name"
-            autoCapitalize="none"
-            autoFocus
+    <View style={[styles.screen, { paddingTop: insets.top + space.md }]}>
+      <Text style={styles.kicker}>{t('scannedBarcode')}</Text>
+      <Text style={styles.barcode}>{barcode}</Text>
+      <Text style={styles.title}>{t('findSku')}</Text>
+      <SearchField
+        ref={searchRef}
+        value={query}
+        onChangeText={setQuery}
+        placeholder={t('typeSkuOrName')}
+        autoCapitalize="none"
+        autoFocus
+      />
+
+      {showSearching ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
+
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+
+      <FlatList
+        style={styles.list}
+        data={listData}
+        keyExtractor={(item) => String(item.id)}
+        contentContainerStyle={styles.listContent}
+        keyboardShouldPersistTaps="always"
+        keyboardDismissMode="on-drag"
+        ListEmptyComponent={
+          showSearching ? undefined : (
+            <Text style={styles.empty}>
+              {trimmedQuery.length > 0 ? t('noProductsMatch') : t('typeSkuHint')}
+            </Text>
+          )
+        }
+        renderItem={({ item }) => (
+          <ProductRow
+            product={item}
+            selected={selected?.id === item.id}
+            showBarcode
+            onPress={() => selectProduct(item)}
           />
+        )}
+      />
 
-          {searching ? <ActivityIndicator color={colors.primary} style={styles.spinner} /> : null}
-
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-
-          <FlatList
-            data={results}
-            keyExtractor={(item) => String(item.id)}
-            contentContainerStyle={styles.list}
-            keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={
-              searching ? undefined : (
-                <Text style={styles.empty}>
-                  {debouncedQuery.length > 0
-                    ? 'No products match that search.'
-                    : 'Type a SKU from the label, such as USB2866.'}
-                </Text>
-              )
+      <View style={[styles.footer, { paddingBottom: insets.bottom + space.md }]}>
+        {replaceWarning ? <Text style={styles.warning}>{replaceWarning}</Text> : null}
+        <Button
+          label={selected ? t('mapTo', { sku: selected.sku ?? '' }) : t('selectProduct')}
+          variant="receive"
+          disabled={!selected || saving}
+          loading={saving}
+          onPress={() => {
+            if (selected) {
+              hideKeyboard();
+              void save(selected);
             }
-            renderItem={({ item }) => (
-              <ProductRow
-                product={item}
-                selected={selected?.id === item.id}
-                showBarcode
-                onPress={() => {
-                  setSelected(item);
-                  setError(null);
-                }}
-              />
-            )}
-          />
-
-          <View style={[styles.footer, { paddingBottom: insets.bottom + space.md }]}>
-            {replaceWarning ? <Text style={styles.warning}>{replaceWarning}</Text> : null}
-            <Button
-              label={selected ? `Map to ${selected.sku}` : 'Select a product'}
-              variant="receive"
-              disabled={!selected || saving}
-              loading={saving}
-              onPress={() => void save()}
-            />
-            <Button label="Cancel" variant="ghost" onPress={onClose} disabled={saving} />
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+          }}
+        />
+        <Button
+          label={t('cancel')}
+          variant="ghost"
+          onPress={() => {
+            hideKeyboard();
+            onClose();
+          }}
+          disabled={saving}
+        />
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
   screen: {
     flex: 1,
     backgroundColor: colors.background,
@@ -222,6 +264,9 @@ const styles = StyleSheet.create({
     marginBottom: space.sm,
   },
   list: {
+    flex: 1,
+  },
+  listContent: {
     paddingTop: space.md,
     paddingBottom: space.md,
     gap: space.sm,

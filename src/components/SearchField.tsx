@@ -1,4 +1,7 @@
+import { forwardRef, type ComponentRef } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
+
+type SearchInput = ComponentRef<typeof TextInput>;
 import { colors, radius, space } from '../theme';
 
 type Props = {
@@ -9,16 +12,20 @@ type Props = {
   autoCapitalize?: 'none' | 'characters';
 };
 
-export function SearchField({
-  value,
-  onChangeText,
-  placeholder,
-  autoFocus = false,
-  autoCapitalize = 'none',
-}: Props) {
+export const SearchField = forwardRef<SearchInput, Props>(function SearchField(
+  {
+    value,
+    onChangeText,
+    placeholder,
+    autoFocus = false,
+    autoCapitalize = 'none',
+  },
+  ref,
+) {
   return (
     <View style={styles.wrap}>
       <TextInput
+        ref={ref}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -26,12 +33,15 @@ export function SearchField({
         autoCapitalize={autoCapitalize}
         autoCorrect={false}
         autoFocus={autoFocus}
+        showSoftInputOnFocus
+        returnKeyType="search"
+        blurOnSubmit
         clearButtonMode="while-editing"
         style={styles.input}
       />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   wrap: {

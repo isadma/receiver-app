@@ -162,6 +162,10 @@ export async function updateProductBarcode(
   return body.data;
 }
 
+export async function resetDemo(baseUrl: string): Promise<void> {
+  await request(baseUrl, '/demo/reset', { method: 'POST' });
+}
+
 export async function getShops(baseUrl: string): Promise<Shop[]> {
   const body = await request<{ data: Shop[] }>(baseUrl, '/shops');
   return body.data;

@@ -6,12 +6,14 @@ import { ApiError, listProducts } from '../src/api';
 import { ProductRow } from '../src/components/ProductRow';
 import { SearchField } from '../src/components/SearchField';
 import { useApi } from '../src/context/ApiContext';
+import { useLocale } from '../src/context/LocaleContext';
 import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
 import { colors, space } from '../src/theme';
 import type { Product } from '../src/types';
 
 export default function DataScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useLocale();
   const { baseUrl } = useApi();
   const [query, setQuery] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
@@ -42,7 +44,7 @@ export default function DataScreen() {
         setLastPage(result.meta.last_page);
         setProducts((current) => (replace ? result.data : [...current, ...result.data]));
       } catch (caught) {
-        setError(caught instanceof ApiError ? caught.displayMessage : 'Could not load mapped products.');
+        setError(caught instanceof ApiError ? caught.displayMessage : t('couldNotLoadMapped'));
         if (replace) {
           setProducts([]);
         }
@@ -51,7 +53,7 @@ export default function DataScreen() {
         setRefreshing(false);
       }
     },
-    [baseUrl, debouncedQuery],
+    [baseUrl, debouncedQuery, t],
   );
 
   useFocusEffect(
@@ -66,7 +68,7 @@ export default function DataScreen() {
         <SearchField
           value={query}
           onChangeText={setQuery}
-          placeholder="Search mapped SKU or name"
+          placeholder={t('searchMapped')}
         />
       </View>
 
@@ -92,7 +94,7 @@ export default function DataScreen() {
             <ActivityIndicator color={colors.primary} />
           ) : (
             <Text style={styles.empty}>
-              {query.trim() ? 'No mapped products match that search.' : 'No mapped products yet.'}
+              {query.trim() ? t('noMappedMatch') : t('noMappedYet')}
             </Text>
           )
         }

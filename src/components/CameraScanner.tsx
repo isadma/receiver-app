@@ -2,6 +2,7 @@ import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'ex
 import { useEffect, useRef } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocale } from '../context/LocaleContext';
 import { colors, radius, space } from '../theme';
 import { Button } from './Button';
 
@@ -15,6 +16,7 @@ type Props = {
 
 export function CameraScanner({ visible, onClose, onScanned }: Props) {
   const insets = useSafeAreaInsets();
+  const { t } = useLocale();
   const [permission, requestPermission] = useCameraPermissions();
   const locked = useRef(false);
 
@@ -39,12 +41,10 @@ export function CameraScanner({ visible, onClose, onScanned }: Props) {
       <View style={styles.screen}>
         {!permission?.granted ? (
           <View style={[styles.permission, { paddingTop: insets.top + space.lg }]}>
-            <Text style={styles.title}>Camera access</Text>
-            <Text style={styles.body}>
-              Receiver uses the camera to read the barcode on a product label.
-            </Text>
-            <Button label="Allow camera" onPress={() => void requestPermission()} />
-            <Button label="Close" variant="ghost" onPress={onClose} />
+            <Text style={styles.title}>{t('cameraAccess')}</Text>
+            <Text style={styles.body}>{t('cameraBody')}</Text>
+            <Button label={t('allowCamera')} onPress={() => void requestPermission()} />
+            <Button label={t('close')} variant="ghost" onPress={onClose} />
           </View>
         ) : (
           <>
@@ -55,13 +55,13 @@ export function CameraScanner({ visible, onClose, onScanned }: Props) {
               onBarcodeScanned={handleBarcode}
             />
             <View style={[styles.overlay, { paddingTop: insets.top + space.md }]} pointerEvents="box-none">
-              <Text style={styles.hint}>Point at the barcode on the label</Text>
+              <Text style={styles.hint}>{t('pointAtBarcode')}</Text>
               <View style={styles.frame} />
               <Pressable
                 onPress={onClose}
                 style={[styles.close, { bottom: insets.bottom + space.lg }]}
               >
-                <Text style={styles.closeLabel}>Close</Text>
+                <Text style={styles.closeLabel}>{t('close')}</Text>
               </Pressable>
             </View>
           </>

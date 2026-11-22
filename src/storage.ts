@@ -1,8 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DEFAULT_LOCALE, type Locale } from './i18n/translations';
 
-export const DEFAULT_API_URL = 'http://127.0.0.1:8000/api';
+export const DEFAULT_API_URL = 'https://receiver.meredow.com/api';
+const LEGACY_LOCAL_API_URL = 'http://127.0.0.1:8000/api';
 const API_URL_KEY = 'receiver.apiBaseUrl';
 const SHOP_KEY = 'receiver.selectedShop';
+const LOCALE_KEY = 'receiver.locale';
 
 export function normalizeBaseUrl(value: string): string {
   return value.trim().replace(/\/+$/, '');
@@ -14,7 +17,12 @@ export async function loadApiBaseUrl(): Promise<string> {
     return DEFAULT_API_URL;
   }
 
-  return normalizeBaseUrl(stored) || DEFAULT_API_URL;
+  const normalized = normalizeBaseUrl(stored);
+  if (!normalized || normalized === LEGACY_LOCAL_API_URL) {
+    return DEFAULT_API_URL;
+  }
+
+  return normalized;
 }
 
 export async function saveApiBaseUrl(value: string): Promise<string> {
@@ -29,4 +37,17 @@ export async function loadSelectedShop(): Promise<string | null> {
 
 export async function saveSelectedShop(slug: string): Promise<void> {
   await AsyncStorage.setItem(SHOP_KEY, slug);
+}
+
+export async function loadLocale(): Promise<Locale> {
+  const stored = await AsyncStorage.getItem(LOCALE_KEY);
+  if (stored === 'en' || stored === 'ru') {
+    return stored;
+  }
+
+  return DEFAULT_LOCALE;
+}
+
+export async function saveLocale(locale: Locale): Promise<void> {
+  await AsyncStorage.setItem(LOCALE_KEY, locale);
 }
