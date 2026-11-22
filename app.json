@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "Receiver",
+    "slug": "receiver",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "receiver",
+    "ios": {
+      "bundleIdentifier": "com.meredow.receiver",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow Receiver to use the camera to read product labels.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true
+        }
+      }
+    },
+    "android": {
+      "package": "com.meredow.receiver",
+      "usesCleartextTraffic": true,
+      "adaptiveIcon": {
+        "backgroundColor": "#F3EFE6",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Receiver to use the camera to read product labels.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F3EFE6",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
