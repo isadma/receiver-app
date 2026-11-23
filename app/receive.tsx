@@ -11,50 +11,36 @@ import {
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ApiError, getProductByBarcode, getShops, receiveProduct } from '../src/api';
+import { ApiError, getShops, receiveLot } from '../src/api';
 import { Button } from '../src/components/Button';
 import { CameraScanner } from '../src/components/CameraScanner';
-import { MapBarcodeSheet } from '../src/components/MapBarcodeSheet';
-import { SuccessNotice, type SuccessNoticeData } from '../src/components/SuccessNotice';
+import { SuccessNotice } from '../src/components/SuccessNotice';
 import { useApi } from '../src/context/ApiContext';
 import { useLocale } from '../src/context/LocaleContext';
+import { useSettings } from '../src/context/SettingsContext';
 import { loadSelectedShop, saveSelectedShop } from '../src/storage';
 import { colors, radius, space } from '../src/theme';
-import { productShopQty, type Product, type Shop } from '../src/types';
-
-type Result = {
-  product: Product;
-  qty: number;
-  shop: Shop;
-} | null;
-
-function parseQty(raw: string): number | null {
-  const qty = Number.parseInt(raw.trim(), 10);
-  if (!Number.isInteger(qty) || qty < 1 || qty > 9999) {
-    return null;
-  }
-
-  return qty;
-}
+import type { ReceiveResult, Shop } from '../src/types';
 
 export default function ReceiveScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useLocale();
+  const { allowSameLotScan } = useSettings();
   const { baseUrl } = useApi();
   const [shops, setShops] = useState<Shop[]>([]);
   const [shop, setShop] = useState<Shop | null>(null);
-  const [qtyText, setQtyText] = useState('1');
   const [cameraOpen, setCameraOpen] = useState(false);
   const [manualBarcode, setManualBarcode] = useState('');
-  const [activeBarcode, setActiveBarcode] = useState<string | null>(null);
-  const [mapping, setMapping] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<Result>(null);
+  const [result, setResult] = useState<ReceiveResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<SuccessNoticeData | null>(null);
+  const [failedBarcode, setFailedBarcode] = useState<string | null>(null);
+  const [lotMissing, setLotMissing] = useState(false);
+  const [lotDuplicate, setLotDuplicate] = useState(false);
+  const [notice, setNotice] = useState<ReceiveResult | null>(null);
   const noticeDone = useRef<(() => void) | null>(null);
 
-  const showNotice = (next: SuccessNoticeData): Promise<void> => {
+  const showNotice = (next: ReceiveResult): Promise<void> => {
     return new Promise((resolve) => {
       noticeDone.current = resolve;
       setNotice(next);
@@ -92,50 +78,27 @@ export default function ReceiveScreen() {
   const selectShop = (next: Shop) => {
     setShop(next);
     setError(null);
+    setFailedBarcode(null);
+    setLotMissing(false);
+    setLotDuplicate(false);
     void saveSelectedShop(next.slug);
   };
 
-  const currentQty = (): number | null => parseQty(qtyText);
-
   const resetForNext = () => {
-    setActiveBarcode(null);
-    setMapping(false);
     setManualBarcode('');
     setResult(null);
     setError(null);
-  };
-
-  const completeReceive = async (barcode: string, selectedShop: Shop) => {
-    const qty = currentQty();
-    if (qty === null) {
-      setError(t('invalidQty'));
-      return;
-    }
-
-    const product = await receiveProduct(baseUrl, barcode, selectedShop.slug, qty);
-    setMapping(false);
-    setResult({ product, qty, shop: selectedShop });
-    setActiveBarcode(null);
-    setManualBarcode('');
-    await showNotice({
-      kind: 'received',
-      product,
-      qty,
-      shopName: selectedShop.name,
-    });
+    setFailedBarcode(null);
+    setLotMissing(false);
+    setLotDuplicate(false);
   };
 
   const handleBarcode = async (raw: string) => {
-    const barcode = raw.trim();
+    const barcode = raw.trim().toUpperCase();
     setCameraOpen(false);
 
     if (!shop) {
       setError(t('selectShopFirst'));
-      return;
-    }
-
-    if (currentQty() === null) {
-      setError(t('invalidQty'));
       return;
     }
 
@@ -146,47 +109,38 @@ export default function ReceiveScreen() {
 
     setBusy(true);
     setError(null);
+    setFailedBarcode(null);
+    setLotMissing(false);
+    setLotDuplicate(false);
     setResult(null);
-    setActiveBarcode(barcode);
 
     try {
-      const existing = await getProductByBarcode(baseUrl, barcode);
-      if (existing) {
-        await completeReceive(barcode, shop);
-        return;
-      }
-
-      setMapping(true);
+      const received = await receiveLot(baseUrl, barcode, shop.slug, allowSameLotScan);
+      setResult(received);
+      setManualBarcode('');
+      await showNotice(received);
     } catch (caught) {
-      setActiveBarcode(null);
-      setError(caught instanceof ApiError ? caught.displayMessage : t('couldNotLookup'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleMapped = async (product: Product) => {
-    if (!shop || !product.barcode) {
-      setError(t('selectShopFirst'));
-      setMapping(false);
-      return;
-    }
-
-    setMapping(false);
-    setBusy(true);
-    setError(null);
-
-    try {
-      await completeReceive(product.barcode, shop);
-    } catch (caught) {
-      setError(caught instanceof ApiError ? caught.displayMessage : t('mappedButReceiveFailed'));
+      const notFound = caught instanceof ApiError && caught.status === 404;
+      const duplicate = caught instanceof ApiError && caught.status === 409;
+      setFailedBarcode(barcode);
+      setLotMissing(notFound);
+      setLotDuplicate(duplicate);
+      setManualBarcode(barcode);
+      setError(
+        notFound
+          ? t('lotNotFoundBody')
+          : duplicate
+            ? t('lotAlreadyReceivedBody')
+            : caught instanceof ApiError
+              ? caught.displayMessage
+              : t('couldNotLookup'),
+      );
     } finally {
       setBusy(false);
     }
   };
 
   const shopReady = shop !== null;
-  const shopQty = result ? productShopQty(result.product, result.shop.slug) : null;
 
   return (
     <KeyboardAvoidingView
@@ -214,19 +168,7 @@ export default function ReceiveScreen() {
             );
           })}
         </View>
-        {!shopReady ? (
-          <Text style={styles.hint}>{t('selectShop')}</Text>
-        ) : null}
-
-        <Text style={styles.kicker}>{t('qty')}</Text>
-        <TextInput
-          value={qtyText}
-          onChangeText={setQtyText}
-          keyboardType="number-pad"
-          placeholder="1"
-          placeholderTextColor={colors.muted}
-          style={styles.input}
-        />
+        {!shopReady ? <Text style={styles.hint}>{t('selectShop')}</Text> : null}
 
         <Text style={styles.title}>{t('scanTitle')}</Text>
         <Text style={styles.body}>
@@ -240,6 +182,9 @@ export default function ReceiveScreen() {
           loading={busy}
           onPress={() => {
             setError(null);
+            setFailedBarcode(null);
+            setLotMissing(false);
+            setLotDuplicate(false);
             setCameraOpen(true);
           }}
         />
@@ -250,7 +195,7 @@ export default function ReceiveScreen() {
           onChangeText={setManualBarcode}
           placeholder={t('typeBarcode')}
           placeholderTextColor={colors.muted}
-          autoCapitalize="none"
+          autoCapitalize="characters"
           autoCorrect={false}
           keyboardType="default"
           style={styles.input}
@@ -263,31 +208,33 @@ export default function ReceiveScreen() {
           onPress={() => void handleBarcode(manualBarcode)}
         />
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? (
+          <View style={styles.errorCard}>
+            {lotMissing ? (
+              <Text style={styles.errorTitle}>{t('lotNotFoundTitle')}</Text>
+            ) : null}
+            {lotDuplicate ? (
+              <Text style={styles.errorTitle}>{t('lotAlreadyReceivedTitle')}</Text>
+            ) : null}
+            {failedBarcode ? (
+              <>
+                <Text style={styles.errorLabel}>{t('scannedBarcode')}</Text>
+                <Text selectable style={styles.errorBarcode}>
+                  {failedBarcode}
+                </Text>
+              </>
+            ) : null}
+            <Text style={styles.error}>{error}</Text>
+          </View>
+        ) : null}
 
         {result ? (
           <View style={styles.card}>
             <Text style={[styles.cardKicker, { color: colors.mapped }]}>
-              {t('receivedOn', { qty: result.qty, shop: result.shop.name })}
+              {t('receivedOn', { qty: result.pieces_added, shop: result.shop_name })}
             </Text>
-            <Text style={styles.cardSku}>{result.product.sku}</Text>
-            <Text style={styles.cardName}>{result.product.name}</Text>
-            <Text style={styles.cardBarcode}>{result.product.barcode}</Text>
-            {shopQty ? (
-              <Text style={styles.cardQty}>
-                {t('shopReceivedExpectedLine', {
-                  shop: result.shop.name,
-                  received: shopQty.received,
-                  expected: shopQty.expected,
-                })}
-              </Text>
-            ) : null}
-            <Text style={styles.cardQty}>
-              {t('totalReceivedExpected', {
-                received: result.product.total_received_qty,
-                expected: result.product.total_expected_qty,
-              })}
-            </Text>
+            <Text style={styles.cardSku}>{result.lot_barcode}</Text>
+            <Text style={styles.cardName}>{result.model}</Text>
             <Button label={t('scanAnother')} variant="receive" onPress={resetForNext} />
           </View>
         ) : null}
@@ -299,17 +246,11 @@ export default function ReceiveScreen() {
         onScanned={(barcode) => void handleBarcode(barcode)}
       />
 
-      <MapBarcodeSheet
-        visible={mapping && activeBarcode !== null}
-        barcode={activeBarcode ?? ''}
-        onClose={resetForNext}
-        onMapped={(product) => void handleMapped(product)}
-      />
-
       <SuccessNotice
         notice={notice}
         onDone={() => {
           setNotice(null);
+          resetForNext();
           noticeDone.current?.();
           noticeDone.current = null;
         }}
@@ -392,10 +333,38 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.text,
   },
+  errorCard: {
+    backgroundColor: '#FDECEC',
+    borderRadius: radius.md,
+    padding: space.md,
+    gap: space.xs,
+    borderWidth: 1,
+    borderColor: '#F0B4AE',
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.danger,
+  },
+  errorLabel: {
+    marginTop: space.xs,
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.danger,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  errorBarcode: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: colors.text,
+    fontVariant: ['tabular-nums'],
+  },
   error: {
     color: colors.danger,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
+    lineHeight: 22,
   },
   card: {
     backgroundColor: colors.surface,
@@ -417,15 +386,5 @@ const styles = StyleSheet.create({
   cardName: {
     fontSize: 18,
     color: colors.muted,
-  },
-  cardBarcode: {
-    fontSize: 18,
-    fontVariant: ['tabular-nums'],
-    color: colors.text,
-  },
-  cardQty: {
-    fontSize: 16,
-    color: colors.text,
-    fontVariant: ['tabular-nums'],
   },
 });

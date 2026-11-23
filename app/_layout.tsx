@@ -1,8 +1,10 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { MenuButton } from '../src/components/MenuButton';
 import { ApiProvider } from '../src/context/ApiContext';
 import { LocaleProvider, useLocale } from '../src/context/LocaleContext';
+import { SettingsProvider } from '../src/context/SettingsContext';
 import { colors } from '../src/theme';
 
 function AppStack() {
@@ -18,9 +20,16 @@ function AppStack() {
         contentStyle: { backgroundColor: colors.background },
       }}
     >
-      <Stack.Screen name="index" options={{ title: t('homeTitle') }} />
+      <Stack.Screen
+        name="index"
+        options={{
+          title: t('homeTitle'),
+          headerLeft: () => <MenuButton />,
+        }}
+      />
       <Stack.Screen name="receive" options={{ title: t('receiveTitle') }} />
       <Stack.Screen name="data" options={{ title: t('dataTitle') }} />
+      <Stack.Screen name="settings" options={{ title: t('settingsTitle') }} />
     </Stack>
   );
 }
@@ -29,10 +38,12 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <LocaleProvider>
-        <ApiProvider>
-          <StatusBar style="dark" />
-          <AppStack />
-        </ApiProvider>
+        <SettingsProvider>
+          <ApiProvider>
+            <StatusBar style="dark" />
+            <AppStack />
+          </ApiProvider>
+        </SettingsProvider>
       </LocaleProvider>
     </GestureHandlerRootView>
   );

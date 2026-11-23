@@ -1,4 +1,7 @@
-import type { ListProductsParams, Product, ProductList, Shop, Stats } from './types';
+import type { Lot, LotList, ReceiveResult, Shop, Stats } from './types';
+
+export const API_USER = 'admin';
+export const API_PASSWORD = 'admin01';
 
 export class ApiError extends Error {
   status: number;
@@ -24,6 +27,10 @@ function joinUrl(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 }
 
+function authHeader(): string {
+  return `Basic ${btoa(`${API_USER}:${API_PASSWORD}`)}`;
+}
+
 async function readError(response: Response): Promise<ApiError> {
   let message = `Request failed (${response.status})`;
   let errors: Record<string, string[]> | undefined;
@@ -42,7 +49,9 @@ async function readError(response: Response): Promise<ApiError> {
       errors = body.errors;
     }
   } catch {
-    // Laravel debug pages and empty bodies are ignored.
+    if (response.status === 401) {
+      message = 'Login failed.';
+    }
   }
 
   return new ApiError(message, response.status, errors);
@@ -62,6 +71,7 @@ async function request<T>(
       signal: controller.signal,
       headers: {
         Accept: 'application/json',
+        Authorization: authHeader(),
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...init.headers,
       },
@@ -92,10 +102,10 @@ export async function getStats(baseUrl: string): Promise<Stats> {
   return body.data;
 }
 
-export async function listProducts(
+export async function listLots(
   baseUrl: string,
-  params: ListProductsParams = {},
-): Promise<ProductList> {
+  params: { page?: number; perPage?: number; q?: string } = {},
+): Promise<LotList> {
   const search = new URLSearchParams();
 
   if (params.page) {
@@ -110,56 +120,8 @@ export async function listProducts(
     search.set('q', params.q.trim());
   }
 
-  if (params.status) {
-    search.set('status', params.status);
-  }
-
   const query = search.toString();
-  return request<ProductList>(baseUrl, `/products${query ? `?${query}` : ''}`);
-}
-
-export async function getProductBySku(baseUrl: string, sku: string): Promise<Product> {
-  const body = await request<{ data: Product }>(
-    baseUrl,
-    `/products/sku/${encodeURIComponent(sku)}`,
-  );
-  return body.data;
-}
-
-export async function getProductByBarcode(
-  baseUrl: string,
-  barcode: string,
-): Promise<Product | null> {
-  try {
-    const body = await request<{ data: Product }>(
-      baseUrl,
-      `/products/barcode/${encodeURIComponent(barcode)}`,
-    );
-    return body.data;
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) {
-      return null;
-    }
-
-    throw error;
-  }
-}
-
-export async function updateProductBarcode(
-  baseUrl: string,
-  sku: string,
-  barcode: string,
-): Promise<Product> {
-  const body = await request<{ data: Product }>(
-    baseUrl,
-    `/products/${encodeURIComponent(sku)}/barcode`,
-    {
-      method: 'PATCH',
-      body: JSON.stringify({ barcode }),
-    },
-  );
-
-  return body.data;
+  return request<LotList>(baseUrl, `/lots${query ? `?${query}` : ''}`);
 }
 
 export async function resetDemo(baseUrl: string): Promise<void> {
@@ -171,20 +133,39 @@ export async function getShops(baseUrl: string): Promise<Shop[]> {
   return body.data;
 }
 
-export async function receiveProduct(
+export async function receiveLot(
   baseUrl: string,
-  barcode: string,
+  lotBarcode: string,
   shop: string,
-  qty: number,
-): Promise<Product> {
-  const body = await request<{ data: Product }>(
+  allowRepeat = false,
+): Promise<ReceiveResult> {
+  const body = await request<{ data: ReceiveResult }>(
     baseUrl,
-    `/products/barcode/${encodeURIComponent(barcode)}/receive`,
+    `/lots/${encodeURIComponent(lotBarcode)}/receive`,
     {
       method: 'POST',
-      body: JSON.stringify({ shop, qty }),
+      body: JSON.stringify({
+        shop,
+        allow_repeat: allowRepeat,
+      }),
     },
   );
 
   return body.data;
+}
+
+export async function getLot(baseUrl: string, lotBarcode: string): Promise<Lot | null> {
+  try {
+    const body = await request<{ data: Lot }>(
+      baseUrl,
+      `/lots/${encodeURIComponent(lotBarcode)}`,
+    );
+    return body.data;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return null;
+    }
+
+    throw error;
+  }
 }

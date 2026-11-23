@@ -4,76 +4,61 @@ export type Shop = {
   slug: string;
 };
 
-export type ShopQty = {
-  expected_qty: number;
-  received_qty: number;
-  remaining_qty: number;
-};
-
-export type Product = {
-  id: number;
-  barcode: string | null;
-  sku: string | null;
-  name: string | null;
-  total_expected_qty: number;
-  amazon_expected_qty: number;
-  noon_expected_qty: number;
-  namshi_expected_qty: number;
-  total_received_qty: number;
+export type LotItem = {
+  barcode: string;
+  size_code: string;
+  pieces_per_lot: number;
+  pieces_added?: number;
   amazon_received_qty: number;
   noon_received_qty: number;
   namshi_received_qty: number;
-  created_at: string;
-  updated_at: string;
+  total_received_qty: number;
+};
+
+export type Lot = {
+  id: number;
+  lot_barcode: string;
+  model: string | null;
+  brand: string | null;
+  name_en: string | null;
+  name_ru: string | null;
+  color: string | null;
+  color_en: string | null;
+  variant: string | null;
+  assortment: string | null;
+  size_set: string | null;
+  pieces_per_lot?: number;
+  amazon_received_qty?: number;
+  noon_received_qty?: number;
+  namshi_received_qty?: number;
+  items: LotItem[];
+};
+
+export type ReceiveResult = Lot & {
+  shop: string;
+  shop_name: string;
+  pieces_added: number;
 };
 
 export type Stats = {
-  total: number;
-  mapped: number;
-  pending: number;
-  expected_qty: number;
+  lots: number;
+  items: number;
   received_qty: number;
-  remaining_qty: number;
   shops: {
-    amazon: ShopQty;
-    noon: ShopQty;
-    namshi: ShopQty;
+    amazon: { received_qty: number };
+    noon: { received_qty: number };
+    namshi: { received_qty: number };
   };
 };
 
-export type ProductListMeta = {
+export type LotListMeta = {
   current_page: number;
   last_page: number;
   per_page: number;
   total: number;
-  from: number | null;
-  to: number | null;
 };
 
-export type ProductList = {
-  data: Product[];
-  meta: ProductListMeta;
+export type LotList = {
+  data: Lot[];
+  meta: LotListMeta;
 };
-
-export type ListProductsParams = {
-  page?: number;
-  perPage?: number;
-  q?: string;
-  status?: 'mapped' | 'pending';
-};
-
-export function productShopQty(
-  product: Product,
-  slug: string,
-): { received: number; expected: number } {
-  switch (slug) {
-    case 'amazon':
-      return { received: product.amazon_received_qty, expected: product.amazon_expected_qty };
-    case 'noon':
-      return { received: product.noon_received_qty, expected: product.noon_expected_qty };
-    case 'namshi':
-      return { received: product.namshi_received_qty, expected: product.namshi_expected_qty };
-    default:
-      return { received: 0, expected: 0 };
-  }
-}

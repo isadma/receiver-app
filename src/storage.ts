@@ -6,6 +6,7 @@ const LEGACY_LOCAL_API_URL = 'http://127.0.0.1:8000/api';
 const API_URL_KEY = 'receiver.apiBaseUrl';
 const SHOP_KEY = 'receiver.selectedShop';
 const LOCALE_KEY = 'receiver.locale';
+const ALLOW_SAME_LOT_KEY = 'receiver.allowSameLotScan';
 
 export function normalizeBaseUrl(value: string): string {
   return value.trim().replace(/\/+$/, '');
@@ -50,4 +51,13 @@ export async function loadLocale(): Promise<Locale> {
 
 export async function saveLocale(locale: Locale): Promise<void> {
   await AsyncStorage.setItem(LOCALE_KEY, locale);
+}
+
+export async function loadAllowSameLotScan(): Promise<boolean> {
+  const stored = await AsyncStorage.getItem(ALLOW_SAME_LOT_KEY);
+  return stored === '1';
+}
+
+export async function saveAllowSameLotScan(value: boolean): Promise<void> {
+  await AsyncStorage.setItem(ALLOW_SAME_LOT_KEY, value ? '1' : '0');
 }

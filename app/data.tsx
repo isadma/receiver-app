@@ -2,21 +2,21 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ApiError, listProducts } from '../src/api';
-import { ProductRow } from '../src/components/ProductRow';
+import { ApiError, listLots } from '../src/api';
+import { LotRow } from '../src/components/LotRow';
 import { SearchField } from '../src/components/SearchField';
 import { useApi } from '../src/context/ApiContext';
 import { useLocale } from '../src/context/LocaleContext';
 import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
 import { colors, space } from '../src/theme';
-import type { Product } from '../src/types';
+import type { Lot } from '../src/types';
 
 export default function DataScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useLocale();
   const { baseUrl } = useApi();
   const [query, setQuery] = useState('');
-  const [products, setProducts] = useState<Product[]>([]);
+  const [lots, setLots] = useState<Lot[]>([]);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -33,20 +33,19 @@ export default function DataScreen() {
       setError(null);
 
       try {
-        const result = await listProducts(baseUrl, {
+        const result = await listLots(baseUrl, {
           page: nextPage,
           perPage: 20,
           q: debouncedQuery,
-          status: 'mapped',
         });
 
         setPage(result.meta.current_page);
         setLastPage(result.meta.last_page);
-        setProducts((current) => (replace ? result.data : [...current, ...result.data]));
+        setLots((current) => (replace ? result.data : [...current, ...result.data]));
       } catch (caught) {
-        setError(caught instanceof ApiError ? caught.displayMessage : t('couldNotLoadMapped'));
+        setError(caught instanceof ApiError ? caught.displayMessage : t('couldNotLoadLots'));
         if (replace) {
-          setProducts([]);
+          setLots([]);
         }
       } finally {
         setLoading(false);
@@ -68,14 +67,14 @@ export default function DataScreen() {
         <SearchField
           value={query}
           onChangeText={setQuery}
-          placeholder={t('searchMapped')}
+          placeholder={t('searchLots')}
         />
       </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <FlatList
-        data={products}
+        data={lots}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + space.lg }]}
         refreshing={refreshing}
@@ -94,11 +93,11 @@ export default function DataScreen() {
             <ActivityIndicator color={colors.primary} />
           ) : (
             <Text style={styles.empty}>
-              {query.trim() ? t('noMappedMatch') : t('noMappedYet')}
+              {query.trim() ? t('noLotMatch') : t('noLotsYet')}
             </Text>
           )
         }
-        renderItem={({ item }) => <ProductRow product={item} showQty />}
+        renderItem={({ item }) => <LotRow lot={item} />}
       />
     </View>
   );
