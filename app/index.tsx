@@ -49,7 +49,12 @@ export default function HomeScreen() {
       contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.lg }]}
       keyboardShouldPersistTaps="handled"
     >
-      <Button label={t('receive')} variant="receive" onPress={() => router.push('/receive')} />
+      <Button label={t('receiveLot')} variant="receive" onPress={() => router.push('/receive')} />
+      <Button
+        label={t('receiveItem')}
+        variant="receive"
+        onPress={() => router.push('/receive-item')}
+      />
       <Button label={t('data')} variant="data" onPress={() => router.push('/data')} />
 
       <Text style={styles.lede}>{t('homeLede')}</Text>

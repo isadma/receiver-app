@@ -37,6 +37,7 @@ export type Lot = {
 export type ReceiveResult = Lot & {
   shop: string;
   shop_name: string;
+  box: string;
   pieces_added: number;
 };
 
@@ -61,4 +62,37 @@ export type LotListMeta = {
 export type LotList = {
   data: Lot[];
   meta: LotListMeta;
+};
+
+export type BoxRecord = {
+  id: number;
+  shop: string;
+  shop_name: string;
+  box_number: string;
+  status: 'open' | 'closed';
+  qty: number;
+  different_lots: number;
+  exists?: boolean;
+};
+
+export type BoxLotItem = {
+  id: number;
+  lot_item_id: number;
+  barcode: string;
+  size_code: string;
+  qty: number;
+};
+
+export type BoxLot = {
+  id: number;
+  lot_barcode: string;
+  model: string | null;
+  name: string | null;
+  color: string | null;
+  qty: number;
+  items: BoxLotItem[];
+};
+
+export type BoxContents = BoxRecord & {
+  lots: BoxLot[];
 };

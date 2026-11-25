@@ -28,8 +28,12 @@ function AppStack() {
         }}
       />
       <Stack.Screen name="receive" options={{ title: t('receiveTitle') }} />
+      <Stack.Screen name="receive-item" options={{ title: t('receiveItemTitle') }} />
       <Stack.Screen name="data" options={{ title: t('dataTitle') }} />
-      <Stack.Screen name="settings" options={{ title: t('settingsTitle') }} />
+      <Stack.Screen name="settings" options={{ title: t('menu') }} />
+      <Stack.Screen name="change-box-shop" options={{ title: t('changeBoxShopTitle') }} />
+      <Stack.Screen name="box-contents" options={{ title: t('boxContentsTitle') }} />
+      <Stack.Screen name="box-contents/[shop]/[box]" options={{ title: t('boxContentsTitle') }} />
     </Stack>
   );
 }

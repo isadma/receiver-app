@@ -12,9 +12,11 @@ type Props = {
   visible: boolean;
   onClose: () => void;
   onScanned: (barcode: string) => void;
+  cameraBody?: string;
+  pointHint?: string;
 };
 
-export function CameraScanner({ visible, onClose, onScanned }: Props) {
+export function CameraScanner({ visible, onClose, onScanned, cameraBody, pointHint }: Props) {
   const insets = useSafeAreaInsets();
   const { t } = useLocale();
   const [permission, requestPermission] = useCameraPermissions();
@@ -42,7 +44,7 @@ export function CameraScanner({ visible, onClose, onScanned }: Props) {
         {!permission?.granted ? (
           <View style={[styles.permission, { paddingTop: insets.top + space.lg }]}>
             <Text style={styles.title}>{t('cameraAccess')}</Text>
-            <Text style={styles.body}>{t('cameraBody')}</Text>
+            <Text style={styles.body}>{cameraBody ?? t('cameraBody')}</Text>
             <Button label={t('allowCamera')} onPress={() => void requestPermission()} />
             <Button label={t('close')} variant="ghost" onPress={onClose} />
           </View>
@@ -55,7 +57,7 @@ export function CameraScanner({ visible, onClose, onScanned }: Props) {
               onBarcodeScanned={handleBarcode}
             />
             <View style={[styles.overlay, { paddingTop: insets.top + space.md }]} pointerEvents="box-none">
-              <Text style={styles.hint}>{t('pointAtBarcode')}</Text>
+              <Text style={styles.hint}>{pointHint ?? t('pointAtBarcode')}</Text>
               <View style={styles.frame} />
               <Pressable
                 onPress={onClose}

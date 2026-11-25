@@ -7,6 +7,7 @@ const API_URL_KEY = 'receiver.apiBaseUrl';
 const SHOP_KEY = 'receiver.selectedShop';
 const LOCALE_KEY = 'receiver.locale';
 const ALLOW_SAME_LOT_KEY = 'receiver.allowSameLotScan';
+const LAST_BOX_KEY = 'receiver.lastBoxByShop';
 
 export function normalizeBaseUrl(value: string): string {
   return value.trim().replace(/\/+$/, '');
@@ -60,4 +61,38 @@ export async function loadAllowSameLotScan(): Promise<boolean> {
 
 export async function saveAllowSameLotScan(value: boolean): Promise<void> {
   await AsyncStorage.setItem(ALLOW_SAME_LOT_KEY, value ? '1' : '0');
+}
+
+export async function loadLastBoxes(): Promise<Record<string, string>> {
+  const stored = await AsyncStorage.getItem(LAST_BOX_KEY);
+  if (!stored) {
+    return {};
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {};
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        (entry): entry is [string, string] => typeof entry[1] === 'string',
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+export async function saveLastBox(shopSlug: string, box: string): Promise<void> {
+  const current = await loadLastBoxes();
+  current[shopSlug] = box;
+  await AsyncStorage.setItem(LAST_BOX_KEY, JSON.stringify(current));
+}
+
+export async function clearLastBox(shopSlug: string): Promise<void> {
+  const current = await loadLastBoxes();
+  delete current[shopSlug];
+  await AsyncStorage.setItem(LAST_BOX_KEY, JSON.stringify(current));
 }

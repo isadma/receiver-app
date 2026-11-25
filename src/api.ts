@@ -1,4 +1,4 @@
-import type { Lot, LotList, ReceiveResult, Shop, Stats } from './types';
+import type { BoxContents, BoxRecord, Lot, LotList, ReceiveResult, Shop, Stats } from './types';
 
 export const API_USER = 'admin';
 export const API_PASSWORD = 'admin01';
@@ -137,6 +137,7 @@ export async function receiveLot(
   baseUrl: string,
   lotBarcode: string,
   shop: string,
+  box: string,
   allowRepeat = false,
 ): Promise<ReceiveResult> {
   const body = await request<{ data: ReceiveResult }>(
@@ -146,12 +147,120 @@ export async function receiveLot(
       method: 'POST',
       body: JSON.stringify({
         shop,
+        box,
         allow_repeat: allowRepeat,
       }),
     },
   );
 
   return body.data;
+}
+
+export async function receiveItem(
+  baseUrl: string,
+  barcode: string,
+  shop: string,
+  box: string,
+): Promise<ReceiveResult> {
+  const body = await request<{ data: ReceiveResult }>(
+    baseUrl,
+    `/items/${encodeURIComponent(barcode)}/receive`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        shop,
+        box,
+      }),
+    },
+  );
+
+  return body.data;
+}
+
+function boxPath(shop: string, box: string): string {
+  return `/boxes/${encodeURIComponent(shop)}/${encodeURIComponent(box)}`;
+}
+
+export async function listBoxes(baseUrl: string, shop?: string): Promise<BoxRecord[]> {
+  const query = shop ? `?shop=${encodeURIComponent(shop)}` : '';
+  const body = await request<{ data: BoxRecord[] }>(baseUrl, `/boxes${query}`);
+  return body.data;
+}
+
+export async function createBox(
+  baseUrl: string,
+  shop: string,
+  box: string,
+): Promise<BoxRecord> {
+  const body = await request<{ data: BoxRecord }>(baseUrl, '/boxes', {
+    method: 'POST',
+    body: JSON.stringify({ shop, box }),
+  });
+  return body.data;
+}
+
+export async function closeBox(baseUrl: string, shop: string, box: string): Promise<BoxRecord> {
+  const body = await request<{ data: BoxRecord }>(baseUrl, `${boxPath(shop, box)}/close`, {
+    method: 'POST',
+  });
+  return body.data;
+}
+
+export async function openBox(baseUrl: string, shop: string, box: string): Promise<BoxRecord> {
+  const body = await request<{ data: BoxRecord }>(baseUrl, `${boxPath(shop, box)}/open`, {
+    method: 'POST',
+  });
+  return body.data;
+}
+
+export async function moveBoxShop(
+  baseUrl: string,
+  fromShop: string,
+  toShop: string,
+  box: string,
+): Promise<BoxRecord> {
+  const body = await request<{ data: BoxRecord }>(baseUrl, '/boxes/move-shop', {
+    method: 'POST',
+    body: JSON.stringify({
+      from_shop: fromShop,
+      to_shop: toShop,
+      box,
+    }),
+  });
+  return body.data;
+}
+
+export async function getBoxContents(
+  baseUrl: string,
+  shop: string,
+  box: string,
+): Promise<BoxContents> {
+  const body = await request<{ data: BoxContents }>(baseUrl, boxPath(shop, box));
+  return body.data;
+}
+
+export async function updateBoxReceiptQty(
+  baseUrl: string,
+  receiptId: number,
+  qty: number,
+): Promise<void> {
+  await request(baseUrl, `/box-receipts/${receiptId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ qty }),
+  });
+}
+
+export async function deleteBoxReceipt(baseUrl: string, receiptId: number): Promise<void> {
+  await request(baseUrl, `/box-receipts/${receiptId}`, { method: 'DELETE' });
+}
+
+export async function deleteBoxLot(
+  baseUrl: string,
+  shop: string,
+  box: string,
+  lotId: number,
+): Promise<void> {
+  await request(baseUrl, `${boxPath(shop, box)}/lots/${lotId}`, { method: 'DELETE' });
 }
 
 export async function getLot(baseUrl: string, lotBarcode: string): Promise<Lot | null> {

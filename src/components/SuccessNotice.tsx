@@ -7,10 +7,11 @@ import { Button } from './Button';
 
 type Props = {
   notice: ReceiveResult | null;
+  mode?: 'lot' | 'item';
   onDone: () => void;
 };
 
-export function SuccessNotice({ notice, onDone }: Props) {
+export function SuccessNotice({ notice, mode = 'lot', onDone }: Props) {
   const insets = useSafeAreaInsets();
   const { t, locale } = useLocale();
 
@@ -18,6 +19,8 @@ export function SuccessNotice({ notice, onDone }: Props) {
     return null;
   }
 
+  const isItem = mode === 'item';
+  const scannedItem = notice.items[0];
   const name =
     (locale === 'ru' ? notice.name_ru : notice.name_en) ??
     notice.name_en ??
@@ -27,6 +30,8 @@ export function SuccessNotice({ notice, onDone }: Props) {
   const product = [...new Set([notice.model, name].filter((part): part is string => Boolean(part)))].join(
     ' · ',
   );
+  const barcode = isItem ? (scannedItem?.barcode ?? notice.lot_barcode) : notice.lot_barcode;
+  const sizes = isItem && scannedItem ? [scannedItem] : notice.items;
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onDone}>
@@ -37,28 +42,31 @@ export function SuccessNotice({ notice, onDone }: Props) {
               <Text style={styles.checkMark}>✓</Text>
             </View>
             <View style={styles.headerText}>
-              <Text style={styles.title}>{t('itemCounted')}</Text>
-              <Text style={styles.lede}>{t('checkProduct')}</Text>
+              <Text style={styles.title}>{isItem ? t('itemPieceCounted') : t('itemCounted')}</Text>
+              <Text style={styles.lede}>{isItem ? t('checkItem') : t('checkProduct')}</Text>
             </View>
           </View>
 
           <View style={styles.summary}>
             <View style={styles.summaryMain}>
-              <Text style={styles.factLabel}>{t('barcode')}</Text>
-              <Text style={styles.barcode}>{notice.lot_barcode}</Text>
+              <Text style={styles.factLabel}>{isItem ? t('productBarcode') : t('barcode')}</Text>
+              <Text style={styles.barcode}>{barcode}</Text>
               <Text style={styles.product} numberOfLines={2}>
                 {product}
               </Text>
               <Text style={styles.color}>{color}</Text>
+              <Text style={styles.box}>{t('box')} {notice.box}</Text>
             </View>
             <View style={styles.qtyBox}>
               <Text style={styles.qtyValue}>{notice.pieces_added}</Text>
-              <Text style={styles.qtyHint}>{t('toShop', { shop: notice.shop_name })}</Text>
+              <Text style={styles.qtyHint}>
+                {t('toShop', { shop: notice.shop_name, box: notice.box })}
+              </Text>
             </View>
           </View>
 
           <View style={styles.sizes}>
-            {notice.items.map((item) => (
+            {sizes.map((item) => (
               <View key={item.barcode} style={styles.sizeRow}>
                 <Text style={styles.sizeLabel}>{item.size_code}</Text>
                 <Text style={styles.sizeQty}>+{item.pieces_added ?? item.pieces_per_lot}</Text>
@@ -67,7 +75,7 @@ export function SuccessNotice({ notice, onDone }: Props) {
           </View>
 
           <Button
-            label={t('okNext')}
+            label={isItem ? t('okNextItem') : t('okNext')}
             variant="receive"
             onPress={onDone}
             style={styles.button}
@@ -156,6 +164,12 @@ const styles = StyleSheet.create({
   color: {
     fontSize: 13,
     color: colors.muted,
+  },
+  box: {
+    marginTop: 4,
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.text,
   },
   qtyBox: {
     minWidth: 72,
